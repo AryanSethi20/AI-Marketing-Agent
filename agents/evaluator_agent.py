@@ -1,10 +1,4 @@
-"""Relevance Evaluator Agent.
-
-Scores discovered trends against the target company's brand identity, strategy,
-and product portfolio, and selects exactly the top 3 most relevant topics.
-Output is schema-validated; the agent guarantees exactly three selections even
-if the model over- or under-returns.
-"""
+"""Scores trends against the company's brand and picks the top 3."""
 
 from __future__ import annotations
 
@@ -22,8 +16,6 @@ TOP_N = 3
 
 
 class SelectedTopic(BaseModel):
-    """A trend selected for campaign development, with scoring rationale."""
-
     name: str = Field(..., description="Trend name (kept from the input list).")
     summary: str = Field(..., description="Short description of the trend.")
     relevance_score: int = Field(
@@ -32,15 +24,13 @@ class SelectedTopic(BaseModel):
     rationale: str = Field(
         ...,
         description=(
-            "2–3 sentences on why this trend fits the company's brand, "
+            "2-3 sentences on why this trend fits the company's brand, "
             "strategy, and products."
         ),
     )
 
 
 class EvaluationResult(BaseModel):
-    """Container schema for structured LLM output."""
-
     selected_topics: List[SelectedTopic] = Field(
         ..., description=f"Exactly the top {TOP_N} topics, highest score first."
     )
@@ -55,21 +45,11 @@ _SYSTEM_PROMPT = (
 
 
 class EvaluatorAgent:
-    """Ranks trends by brand relevance and returns exactly the top 3."""
-
     def __init__(self, llm: LLMClient) -> None:
         self.llm = llm
 
     def select_top_topics(self, company: str, trends: List[Trend]) -> List[SelectedTopic]:
-        """Return exactly :data:`TOP_N` topics best aligned to ``company``.
-
-        Args:
-            company: Target company name, e.g. ``"Mastercard"``.
-            trends: Candidate trends from :class:`TrendAgent`.
-
-        Raises:
-            ValueError: If no trends are provided.
-        """
+        """Return exactly TOP_N topics, whatever the model does."""
         if not trends:
             raise ValueError("EvaluatorAgent received an empty trend list.")
 
@@ -83,7 +63,7 @@ class EvaluatorAgent:
             "and products, evaluate the candidate trends below.\n\n"
             f"Candidate trends:\n{trend_block}\n\n"
             f"Select EXACTLY the top {TOP_N} trends with the strongest brand "
-            "fit and commercial potential for this company. Score each 1–100 "
+            "fit and commercial potential for this company. Score each 1-100 "
             "and justify the fit. Order them highest score first."
         )
 
@@ -93,16 +73,17 @@ class EvaluatorAgent:
             )
             selected = parsed.selected_topics
         except LLMError as exc:
-            logger.error("Evaluation failed (%s); falling back to first trends.", exc)
+            logger.error("Evaluation failed (%s), falling back to first trends", exc)
             selected = []
 
-        # --- Guarantee exactly TOP_N results -------------------------------
+        # The brief demands exactly 3 topics, so enforce it in code rather
+        # than trusting the prompt: truncate if the model over-returned, pad
+        # from the remaining candidates if it under-returned or errored.
         selected = [s for s in selected if s.name.strip()][:TOP_N]
         if len(selected) < TOP_N:
             logger.warning(
-                "Evaluator returned %d/%d topics; padding from candidates.",
-                len(selected),
-                TOP_N,
+                "Evaluator returned %d/%d topics, padding from candidates",
+                len(selected), TOP_N,
             )
             chosen_names = {s.name.lower() for s in selected}
             for trend in trends:

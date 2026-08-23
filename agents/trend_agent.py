@@ -1,10 +1,4 @@
-"""Trend Discovery Agent.
-
-Consumes raw live search results for a keyword and distills them into a clean,
-de-duplicated list of concrete trending topics using a schema-constrained LLM
-call. Includes a deterministic fallback that surfaces raw headlines if the
-model call fails, so the pipeline never dies at this stage.
-"""
+"""Turns raw live search results into a clean list of trending topics."""
 
 from __future__ import annotations
 
@@ -20,14 +14,18 @@ logger = logging.getLogger(__name__)
 
 _MIN_TRENDS = 5
 _MAX_TRENDS = 10
+# The search tool runs 4 queries x max_search_results each; cap how many
+# result lines get quoted in the prompt so it stays bounded.
+_MAX_PROMPT_RESULTS = 30
+
+# Field descriptions below are not just docs - they end up in the JSON schema
+# that complete_json() injects into the prompt, so they steer the model.
 
 
 class Trend(BaseModel):
-    """One trending topic extracted from live web data."""
-
-    name: str = Field(..., description="Short, punchy trend name (3–8 words).")
+    name: str = Field(..., description="Short, punchy trend name (3-8 words).")
     summary: str = Field(
-        ..., description="1–2 sentence explanation of the trend and why it is hot."
+        ..., description="1-2 sentence explanation of the trend and why it is hot."
     )
     evidence: str = Field(
         default="",
@@ -36,8 +34,6 @@ class Trend(BaseModel):
 
 
 class TrendList(BaseModel):
-    """Container schema for structured LLM output."""
-
     trends: List[Trend] = Field(..., description="Distinct trending topics.")
 
 
@@ -51,18 +47,12 @@ _SYSTEM_PROMPT = (
 
 
 class TrendAgent:
-    """Fetches live search data and extracts structured trends from it."""
-
     def __init__(self, llm: LLMClient, max_search_results: int = 8) -> None:
         self.llm = llm
         self.max_search_results = max_search_results
 
     def discover(self, keyword: str) -> List[Trend]:
-        """Return 5–10 trending topics for ``keyword``.
-
-        Raises:
-            RuntimeError: If neither search data nor fallback trends exist.
-        """
+        """Return 5-10 trending topics for the keyword."""
         results = search_trending_topics(keyword, self.max_search_results)
         if not results:
             raise RuntimeError(
@@ -70,7 +60,9 @@ class TrendAgent:
                 f"{keyword!r}. Check your network connection and try again."
             )
 
-        search_block = "\n".join(r.to_prompt_line() for r in results[:40])
+        search_block = "\n".join(
+            r.to_prompt_line() for r in results[:_MAX_PROMPT_RESULTS]
+        )
         user_prompt = (
             f"Keyword: {keyword!r}\n\n"
             f"Real-time search results:\n{search_block}\n\n"
@@ -85,15 +77,16 @@ class TrendAgent:
             if trends:
                 logger.info("Extracted %d trends for %r", len(trends), keyword)
                 return trends[:_MAX_TRENDS]
-            logger.warning("LLM returned an empty trend list; using fallback.")
+            logger.warning("LLM returned an empty trend list, using fallback")
         except LLMError as exc:
-            logger.error("Trend extraction failed (%s); using headline fallback.", exc)
+            logger.error("Trend extraction failed (%s), using headline fallback", exc)
 
         return self._fallback_from_headlines(results)
 
     @staticmethod
     def _fallback_from_headlines(results: List[SearchResult]) -> List[Trend]:
-        """Deterministic fallback: promote top headlines to trend candidates."""
+        # If the LLM is down we can still promote raw headlines to trend
+        # candidates - the pipeline degrades instead of dying here.
         fallback = [
             Trend(
                 name=r.title[:80],

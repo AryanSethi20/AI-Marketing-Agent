@@ -1,9 +1,4 @@
-"""Campaign Generation Agent.
-
-For each selected topic, produces a complete, schema-validated marketing
-campaign plan covering: Target Audience, Core Message, Channel Strategy,
-KPIs, and Brand Synergy.
-"""
+"""Generates one full campaign plan per selected topic."""
 
 from __future__ import annotations
 
@@ -19,14 +14,13 @@ logger = logging.getLogger(__name__)
 
 
 class ChannelPlay(BaseModel):
-    """A single channel within the channel strategy."""
-
     channel: str = Field(..., description="e.g. 'Instagram & TikTok', 'CTV', 'Email'.")
     tactic: str = Field(..., description="Concrete activation tactic on this channel.")
 
 
 class CampaignPlan(BaseModel):
-    """Full campaign plan for one topic (one PDF page)."""
+    """One plan = one PDF page. The 3-6 length caps on channels and KPIs
+    keep a plan from overflowing its page."""
 
     topic_name: str = Field(..., description="The trend/topic this plan activates.")
     campaign_title: str = Field(..., description="Creative campaign name/tagline.")
@@ -37,10 +31,10 @@ class CampaignPlan(BaseModel):
         ..., description="The single-minded proposition of the campaign."
     )
     channel_strategy: List[ChannelPlay] = Field(
-        ..., min_length=3, max_length=6, description="3–6 channel activations."
+        ..., min_length=3, max_length=6, description="3-6 channel activations."
     )
     kpis: List[str] = Field(
-        ..., min_length=3, max_length=6, description="3–6 measurable KPIs with targets."
+        ..., min_length=3, max_length=6, description="3-6 measurable KPIs with targets."
     )
     brand_synergy: str = Field(
         ...,
@@ -61,19 +55,12 @@ _SYSTEM_PROMPT = (
 
 
 class CampaignAgent:
-    """Generates one :class:`CampaignPlan` per selected topic."""
-
     def __init__(self, llm: LLMClient) -> None:
         self.llm = llm
 
     def generate_plan(
         self, company: str, keyword: str, topic: SelectedTopic
     ) -> CampaignPlan:
-        """Generate a full campaign plan for a single topic.
-
-        Falls back to a clearly-labelled skeleton plan if the LLM fails, so a
-        partial provider outage still yields a complete 3-page report.
-        """
         user_prompt = (
             f"Company: {company}\n"
             f"Industry keyword: {keyword}\n\n"
@@ -82,8 +69,8 @@ class CampaignAgent:
             f"Why it fits the brand: {topic.rationale}\n\n"
             "Create a complete marketing campaign plan for this company to "
             "activate this trend. Include: a creative campaign title, target "
-            "audience, core message, a 3–6 item channel strategy (channel + "
-            "tactic), 3–6 KPIs with concrete numeric targets, and a brand "
+            "audience, core message, a 3-6 item channel strategy (channel + "
+            "tactic), 3-6 KPIs with concrete numeric targets, and a brand "
             "synergy statement."
         )
 
@@ -94,27 +81,26 @@ class CampaignAgent:
             return plan
         except LLMError as exc:
             logger.error(
-                "Campaign generation failed for %r (%s); using skeleton plan.",
-                topic.name,
-                exc,
+                "Campaign generation failed for %r (%s), using skeleton plan",
+                topic.name, exc,
             )
             return self._skeleton_plan(company, topic)
 
     def generate_all(
         self, company: str, keyword: str, topics: List[SelectedTopic]
     ) -> List[CampaignPlan]:
-        """Generate plans for every selected topic, preserving order."""
         return [self.generate_plan(company, keyword, t) for t in topics]
 
     @staticmethod
     def _skeleton_plan(company: str, topic: SelectedTopic) -> CampaignPlan:
-        """Minimal deterministic plan used only when the LLM is unavailable."""
+        """Deterministic stand-in so a provider outage mid-run still yields
+        a complete report. Clearly labelled as degraded output."""
         return CampaignPlan(
             topic_name=topic.name,
             campaign_title=f"{company} x {topic.name}",
             target_audience=(
                 "Core customers and prospects most engaged with this trend "
-                "(to be refined — generated in degraded mode)."
+                "(to be refined - generated in degraded mode)."
             ),
             core_message=topic.summary,
             channel_strategy=[

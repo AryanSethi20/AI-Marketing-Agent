@@ -1,15 +1,3 @@
-"""AI Marketing Agent — CLI entrypoint.
-
-Pipeline:
-    1. TrendAgent      — live DuckDuckGo search → structured trend extraction.
-    2. EvaluatorAgent  — brand-fit scoring → top 3 topics for the company.
-    3. CampaignAgent   — full campaign plan per topic (Pydantic-validated).
-    4. PDF generator   — modern 3-page report, one topic per page.
-
-Usage:
-    python main.py --keyword "gaming" --company "Mastercard" --output "campaign.pdf"
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -25,7 +13,7 @@ from agents.campaign_agent import CampaignAgent
 from agents.evaluator_agent import EvaluatorAgent
 from agents.trend_agent import TrendAgent
 from config import get_settings
-from llm_factory import get_llm_client
+from llm_factory import LLMClient
 from utils.pdf_generator import generate_pdf_report
 
 logger = logging.getLogger("marketing_agent")
@@ -37,9 +25,8 @@ def _configure_logging(verbose: bool) -> None:
         datefmt="%H:%M:%S",
         stream=sys.stdout,
     )
-    
     if not verbose:
-        for noisy in ("httpx", "openai", "urllib3", "primp"):
+        for noisy in ("httpx", "httpx2", "openai", "urllib3", "primp", "ddgs"):
             logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
@@ -55,28 +42,27 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--keyword",
         required=True,
-        help='Domain keyword to research (e.g. "food", "fintech", "gaming").',
+        help='domain keyword to research, e.g. "food", "fintech", "gaming"',
     )
     parser.add_argument(
         "--company",
         required=True,
-        help='Target company for brand-fit evaluation (e.g. "Mastercard").',
+        help='target company for brand-fit evaluation, e.g. "Mastercard"',
     )
     parser.add_argument(
         "--output",
         default="campaign_report.pdf",
-        help="Output PDF file path.",
+        help="output PDF file path",
     )
     parser.add_argument(
         "--verbose",
         action="store_true",
-        help="Enable debug logging (including HTTP client logs).",
+        help="debug logging, including HTTP client logs",
     )
     return parser.parse_args(argv)
 
 
 def run(keyword: str, company: str, output: str) -> str:
-    """Execute the full agent pipeline and return the written PDF path."""
     settings = get_settings()
     logger.info(
         "Starting pipeline | keyword=%r company=%r provider=%s model=%s",
@@ -87,34 +73,27 @@ def run(keyword: str, company: str, output: str) -> str:
     )
     started = time.perf_counter()
 
-    llm = get_llm_client(settings)
+    llm = LLMClient(settings)
 
-    logger.info("Step 1/4 — Discovering live trends for %r ...", keyword)
+    logger.info("Step 1/4 - discovering live trends for %r ...", keyword)
     trend_agent = TrendAgent(llm, max_search_results=settings.max_search_results)
     trends = trend_agent.discover(keyword)
     logger.info("Discovered %d candidate trends.", len(trends))
 
-    # 2) Relevance evaluation ------------------------------------------------
-    logger.info("Step 2/4 — Selecting top 3 topics for %s ...", company)
-    evaluator = EvaluatorAgent(llm)
-    topics = evaluator.select_top_topics(company, trends)
+    logger.info("Step 2/4 - selecting top 3 topics for %s ...", company)
+    topics = EvaluatorAgent(llm).select_top_topics(company, trends)
 
-    # 3) Campaign generation -------------------------------------------------
-    logger.info("Step 3/4 — Generating campaign plans ...")
-    campaign_agent = CampaignAgent(llm)
-    plans = campaign_agent.generate_all(company, keyword, topics)
+    logger.info("Step 3/4 - generating campaign plans ...")
+    plans = CampaignAgent(llm).generate_all(company, keyword, topics)
 
-    # 4) PDF rendering ---------------------------------------------------------
-    logger.info("Step 4/4 — Rendering PDF report ...")
+    logger.info("Step 4/4 - rendering PDF report ...")
     path = generate_pdf_report(output, company, keyword, topics, plans)
 
-    elapsed = time.perf_counter() - started
-    logger.info("Done in %.1fs — report saved to %s", elapsed, path)
+    logger.info("Done in %.1fs - report saved to %s", time.perf_counter() - started, path)
     return path
 
 
 def main(argv: list[str] | None = None) -> int:
-    """CLI wrapper with clean exit codes and user-friendly errors."""
     args = _parse_args(argv)
     _configure_logging(args.verbose)
     try:

@@ -1,0 +1,18 @@
+# Secrets — only .env.example is committed
+.env
+
+# Python
+.__pycache__/
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Generated output
+*.pdf
+
+# OS noise
+.DS_Store
+
+# Local interview notes — not part of the submission
+INTERVIEW_PREP.md

@@ -1,13 +1,12 @@
-# AI Marketing Agent 🎯
+# AI Marketing Agent
 
-A modular, production-grade CLI agent that discovers **live web trends** for a
-keyword, selects the **top 3 topics most relevant to a target company's brand**,
-generates a **complete marketing campaign plan** for each, and renders a clean,
-modern **3-page PDF report** — exactly one topic per page.
+A CLI agent that discovers live web trends for a keyword, selects the 3 topics
+most relevant to a target company's brand, generates a marketing campaign plan
+for each, and renders a 3-page PDF report — exactly one topic per page.
 
-Runs on **local Ollama models**, **OpenAI**, or **free API providers
-(Groq / OpenRouter)** — switched entirely via environment variables, with
-**zero hardcoded secrets**.
+Runs on local Ollama models, OpenAI, or free-tier providers (Groq /
+OpenRouter), switched entirely via environment variables. No secrets are
+hardcoded.
 
 ---
 
@@ -58,8 +57,10 @@ marketing_agent/
 │   └── campaign_agent.py   # Topic → full campaign plan (Pydantic)
 ├── utils/
 │   └── pdf_generator.py    # ReportLab report, 1 page per topic
+├── tests/                  # Pytest suite (pure logic, no network/LLM)
 ├── main.py                 # CLI entrypoint (argparse)
-├── requirements.txt        # Pinned dependencies
+├── requirements.txt        # Pinned runtime dependencies
+├── requirements-dev.txt    # + pytest for development
 ├── .env.example            # Configuration template
 └── README.md
 ```
@@ -190,7 +191,44 @@ Styling: dark-slate banner, warm-orange accent, Helvetica typography, soft
 rules and tinted table headers — with a hard `PageBreak()` ensuring exactly
 one topic per page.
 
-## 6. Troubleshooting
+## 6. Running the Tests
+
+The test suite covers the deterministic logic — JSON extraction/recovery,
+the exactly-3-topics guarantee, fallback plans, config validation, and PDF
+rendering — using a fake LLM client, so no network or model is needed:
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+## 7. Tested Configurations & Performance
+
+The provider layer was exercised with several configurations during
+development - same code path, different `.env`:
+
+| Provider | Model | Notes |
+|---|---|---|
+| `ollama` (local) | `qwen2.5:14b` | Main development model. Full run ≈ 3 minutes on an Apple M5 MacBook (32 GB). |
+| `ollama` (local) | `qwen2.5:32b` | Highest quality open-source option; noticeably slower per call. |
+| `ollama` (local) | `llama3.2` | Fast on modest laptops; small models lean more on the corrective-retry loop. |
+| `openai` / `groq` / `openrouter` | any chat model | Hosted inference; a full run typically finishes in well under a minute. |
+
+**Local model performance depends heavily on your hardware.** A full run
+makes ~5 sequential LLM calls (1 trend extraction + 1 evaluation + 3
+campaign plans), so total time scales with per-call latency:
+
+- On Apple Silicon or a discrete GPU, 14B-class models respond in tens of
+  seconds per call; 32B-class models can take several minutes per call.
+- On CPU-only machines, 32B models may be impractically slow - prefer
+  `llama3.2` or a hosted provider.
+- This is why `REQUEST_TIMEOUT_SECONDS` defaults to a generous 900: it
+  should never be the thing that kills an otherwise healthy local run.
+
+The test suite is independent of all this - it uses a fake LLM client and
+runs in seconds on any machine.
+
+## 8. Troubleshooting
 
 | Symptom | Fix |
 |---|---|
@@ -200,9 +238,9 @@ one topic per page.
 | Empty/odd JSON from small local models | The corrective-retry loop usually recovers; otherwise try a larger model (e.g. `qwen2.5:32b`) or lower `LLM_TEMPERATURE`. |
 | Slow local generation | Use `llama3.2` for speed, or Groq for fast free hosted inference. |
 
-## 7. Security Notes
+## 9. Security Notes
 
 - No secrets in code — configuration is environment-only (`.env` is
-  git-ignored by convention; only `.env.example` ships).
+  git-ignored; only `.env.example` ships).
 - Ollama runs fully local: no data leaves your machine except DuckDuckGo
   search queries.
