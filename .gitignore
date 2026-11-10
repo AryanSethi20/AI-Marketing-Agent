@@ -8,11 +8,12 @@ __pycache__/
 .venv/
 .pytest_cache/
 
-# Generated output
+# Generated output (curated samples can live in docs/)
 *.pdf
+!docs/*.pdf
 
 # OS noise
 .DS_Store
 
-# Local interview notes — not part of the submission
+# Local scratch notes
 INTERVIEW_PREP.md

@@ -150,14 +150,14 @@ OPENAI_API_KEY=...if required...
 ## 4. Usage
 
 ```bash
-python main.py --keyword "gaming" --company "Mastercard" --output "campaign.pdf"
+python main.py --keyword "gaming" --company "Spotify" --output "campaign.pdf"
 ```
 
 More examples:
 
 ```bash
-# Fintech trends for Mastercard, default output name (campaign_report.pdf)
-python main.py --keyword "fintech" --company "Mastercard"
+# Fintech trends for Revolut, default output name (campaign_report.pdf)
+python main.py --keyword "fintech" --company "Revolut"
 
 # Food trends for a CPG brand, verbose logging
 python main.py --keyword "food" --company "Nestlé" --output food_report.pdf --verbose

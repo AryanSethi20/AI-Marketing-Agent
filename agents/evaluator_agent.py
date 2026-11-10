@@ -76,7 +76,7 @@ class EvaluatorAgent:
             logger.error("Evaluation failed (%s), falling back to first trends", exc)
             selected = []
 
-        # The brief demands exactly 3 topics, so enforce it in code rather
+        # The report format requires exactly 3 topics, so enforce it in code rather
         # than trusting the prompt: truncate if the model over-returned, pad
         # from the remaining candidates if it under-returned or errored.
         selected = [s for s in selected if s.name.strip()][:TOP_N]

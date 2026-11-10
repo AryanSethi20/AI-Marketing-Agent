@@ -38,7 +38,7 @@ def test_writes_valid_pdf(tmp_path):
     out = tmp_path / "report.pdf"
     topics = [_topic(i) for i in range(3)]
     plans = [_plan(i) for i in range(3)]
-    path = generate_pdf_report(str(out), "Mastercard", "food", topics, plans)
+    path = generate_pdf_report(str(out), "Acme Corp", "food", topics, plans)
     data = out.read_bytes()
     assert path == str(out)
     assert data.startswith(b"%PDF")
@@ -61,5 +61,5 @@ def test_survives_markup_characters_in_llm_text(tmp_path):
 def test_mismatched_lengths_rejected(tmp_path):
     with pytest.raises(ValueError):
         generate_pdf_report(
-            str(tmp_path / "x.pdf"), "Mastercard", "food", [_topic(0)], []
+            str(tmp_path / "x.pdf"), "Acme Corp", "food", [_topic(0)], []
         )

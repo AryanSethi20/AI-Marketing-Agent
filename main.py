@@ -47,7 +47,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--company",
         required=True,
-        help='target company for brand-fit evaluation, e.g. "Mastercard"',
+        help='target company for brand-fit evaluation, e.g. "Spotify"',
     )
     parser.add_argument(
         "--output",

@@ -31,13 +31,13 @@ def _plan(title="Tap Into Taste"):
 
 def test_happy_path_returns_model_plan():
     agent = CampaignAgent(FakeLLM(result=_plan()))
-    plan = agent.generate_plan("Mastercard", "food", TOPIC)
+    plan = agent.generate_plan("Acme Corp", "food", TOPIC)
     assert plan.campaign_title == "Tap Into Taste"
 
 
 def test_skeleton_plan_on_llm_failure():
     agent = CampaignAgent(FakeLLM(fail=True))
-    plan = agent.generate_plan("Mastercard", "food", TOPIC)
+    plan = agent.generate_plan("Acme Corp", "food", TOPIC)
     # The fallback must still satisfy the schema the PDF layer relies on.
     assert plan.topic_name == TOPIC.name
     assert len(plan.channel_strategy) >= 3
@@ -48,5 +48,5 @@ def test_skeleton_plan_on_llm_failure():
 def test_generate_all_preserves_order():
     agent = CampaignAgent(FakeLLM(result=_plan()))
     topics = [TOPIC, TOPIC.model_copy(update={"name": "Second topic"})]
-    plans = agent.generate_all("Mastercard", "food", topics)
+    plans = agent.generate_all("Acme Corp", "food", topics)
     assert len(plans) == 2
